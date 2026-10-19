@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<base target="_top">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="robots" content="noindex,nofollow">
+<title>配送記録</title>
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #f4f6f8; --card: #fff; --ink: #1d2733; --sub: #66727f; --line: #dde3ea;
+    --go: #1a8f4c; --go-press: #136b39; --skip: #6b7785; --accent: #1f6feb; --warn: #b54708; --warn-bg: #fff4e5;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif; }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 12px 16px 40px; }
+  header { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 2px 10px; }
+  header h1 { font-size: 18px; margin: 0; }
+  header .date { color: var(--sub); font-size: 14px; }
+  .progress { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+  .progress > div { height: 100%; background: var(--go); width: 0; transition: width .3s; }
+  .count { text-align: right; font-size: 13px; color: var(--sub); margin: 4px 0 12px; }
+  .card { background: var(--card); border-radius: 14px; padding: 18px 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .label { font-size: 13px; color: var(--sub); margin-bottom: 6px; }
+  .pick { position: relative; border: 2px solid var(--line); border-radius: 12px; padding: 14px 40px 14px 14px; min-height: 64px; }
+  .pick .no { font-size: 13px; color: var(--sub); }
+  .pick .name { font-size: 24px; font-weight: 700; line-height: 1.3; word-break: break-all; }
+  .pick .chev { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--sub); font-size: 20px; }
+  .pick select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; }
+  .hint { font-size: 12px; color: var(--sub); margin: 6px 2px 0; }
+  button { font-family: inherit; border: 0; border-radius: 14px; cursor: pointer; width: 100%; }
+  button:disabled { opacity: .5; }
+  .btn-done { background: var(--go); color: #fff; font-size: 26px; font-weight: 700; padding: 26px 10px; margin-top: 16px; }
+  .btn-done:active { background: var(--go-press); }
+  .btn-skip { background: #e9edf1; color: var(--skip); font-size: 15px; padding: 12px 10px; margin-top: 12px; width: 70%; display: block; margin-left: auto; margin-right: auto; }
+  .btn-start { background: var(--accent); color: #fff; font-size: 24px; font-weight: 700; padding: 28px 10px; }
+  .msg { text-align: center; padding: 30px 10px; font-size: 18px; }
+  .banner { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; }
+  h2 { font-size: 15px; margin: 26px 2px 8px; color: var(--sub); }
+  ul.log { list-style: none; margin: 0; padding: 0; background: var(--card); border-radius: 12px; overflow: hidden; }
+  ul.log li { display: flex; align-items: center; gap: 10px; padding: 12px; border-bottom: 1px solid var(--line); }
+  ul.log li:last-child { border-bottom: 0; }
+  ul.log .t { font-variant-numeric: tabular-nums; font-weight: 700; width: 56px; flex: none; white-space: nowrap; }
+  ul.log .t.skip { color: var(--skip); font-weight: 400; font-size: 12px; }
+  ul.log .n { flex: 1; font-size: 15px; word-break: break-all; }
+  ul.log .pend { font-size: 11px; color: var(--warn); display: block; }
+  ul.log button { width: auto; background: none; color: var(--accent); font-size: 14px; padding: 6px 8px; }
+  ul.log li.todo .n { color: var(--sub); }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: rgba(29,39,51,.92); color: #fff;
+    padding: 12px 18px; border-radius: 24px; font-size: 15px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90%; text-align: center; }
+  .toast.show { opacity: 1; }
+  .overlay { position: fixed; inset: 0; background: rgba(255,255,255,.7); display: none; align-items: center; justify-content: center; font-size: 16px; }
+  .overlay.show { display: flex; }
+  .reload { display: block; margin: 24px auto 0; width: auto; background: none; color: var(--accent); font-size: 14px; padding: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="cname">配送記録</h1>
+    <span class="date" id="date"></span>
+  </header>
+  <div class="progress"><div id="bar"></div></div>
+  <div class="count" id="count"></div>
+  <div id="banner"></div>
+  <div id="main"><div class="msg">読み込み中…</div></div>
+  <div id="lists"></div>
+  <button class="reload" onclick="load(true)">最新の状態に更新</button>
+</div>
+<div class="toast" id="toast"></div>
+<div class="overlay" id="overlay"><span id="overlayText">位置情報を取得中…</span></div>
+
+<script>
+var K = (new URLSearchParams(location.search).get('k') || '').trim(); var API_URL = "https://script.google.com/macros/s/AKfycbx4_IB8kYgLIm9uTthV0cpZCLAGcVcgGr2SIPlTWmNHGcBme3_S_M00yevcHt0Wbj1M5w/exec";
+var QKEY = 'dq_' + K.slice(0, 8);
+var state = { date: '', stops: [], currentId: null, started: false, lastOrder: null, busy: false, geoWarned: false };
+
+/* ---------- 保存（端末内）：未送信キューと開始フラグ ---------- */
+function lsGet(key, def) { try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
+function lsSet(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
+function queue() { return lsGet(QKEY, []); }
+function setQueue(q) { lsSet(QKEY, q); }
+
+/* ---------- 共通 ---------- */
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function hhmm(ts) { var d = new Date(ts); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+function toast(t) { var el = $('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(function () { el.classList.remove('show'); }, 2200); }
+function overlay(on, text) { $('overlayText').textContent = text || ''; $('overlay').classList.toggle('show', !!on); }
+/*
+ * サーバー呼び出し
+ *   GASの画面として開いたとき：google.script.run
+ *   外部の入口ページ（GitHub Pages）として開いたとき：GASのdoPostへfetch。
+ *   Cookieを送らない（credentials:'omit'）ので、スマホのGoogleアカウントの状態に左右されない。
+ */
+function run(fn, args, ok, ng) {
+  ng = ng || function (e) { toast('エラー：' + (e && e.message || e)); };
+  if (!API_URL && window.google && google.script && google.script.run) {
+    var r = google.script.run.withSuccessHandler(ok).withFailureHandler(ng);
+    r[fn].apply(r, args);
+    return;
+  }
+  fetch(API_URL, {
+    method: 'POST', credentials: 'omit', redirect: 'follow',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ fn: fn, args: args })
+  }).then(function (res) { return res.json(); })
+    .then(function (j) { if (j && j.ok) ok(j.data); else ng(new Error((j && j.error) || 'エラーが発生しました')); })
+    .catch(function () { ng(new Error('通信できません')); });
+}
+
+/* ---------- 読み込み ---------- */
+function load(manual) {
+  run('api_getDay', [K], function (s) {
+    applyServer(s);
+    if (manual) toast('更新しました');
+    flush();
+  }, function (e) {
+    if (!state.date) $('main').innerHTML = '<div class="msg">' + esc(e && e.message || '読み込みに失敗しました') + '</div>';
+    else toast('通信できません。電波の良い場所で「更新」を押してください');
+  });
+}
+
+function applyServer(s) {
+  if (state.date && state.date !== s.date) { state.currentId = null; state.lastOrder = null; }
+  state.date = s.date;
+  state.stops = s.stops;
+  if (s.courseName) { $('cname').textContent = s.courseName; document.title = s.courseName + ' 配送記録'; }
+  state.started = lsGet('st_' + K.slice(0, 8) + '_' + s.date, false) || s.stops.some(function (x) { return x.status; });
+  // ブラウザを閉じて開き直したとき：最後に「配達完了」した地点の次から再開する
+  if (state.lastOrder === null) {
+    var lastT = '';
+    s.stops.forEach(function (x) { if (x.status === '配達完了' && x.time >= lastT) { lastT = x.time; state.lastOrder = x.order; } });
+  }
+  render();
+}
+
+/* 未送信キューを画面上の状態に重ねる */
+function view() {
+  var q = queue().filter(function (x) { return x.date === state.date; });
+  return state.stops.map(function (s) {
+    var o = { id: s.id, order: s.order, name: s.name, status: s.status, time: s.time, pending: false };
+    q.forEach(function (x) {
+      if (x.stopId !== s.id) return;
+      if (x.op === 'undo') { o.status = ''; o.time = ''; }
+      else { o.status = x.status; o.time = x.status === '配達完了' ? hhmm(x.clientTs) : '-'; }
+      o.pending = true;
+    });
+    return o;
+  });
+}
+
+/* ---------- 描画 ---------- */
+function render() {
+  var d = state.date.split('-');
+  var wd = '日月火水木金土'.charAt(new Date(+d[0], d[1] - 1, +d[2]).getDay());
+  $('date').textContent = (+d[1]) + '/' + (+d[2]) + '（' + wd + '）';
+
+  var v = view();
+  var todo = v.filter(function (s) { return !s.status; });
+  var done = v.filter(function (s) { return s.status; });
+  var total = v.length;
+  $('bar').style.width = total ? (done.length / total * 100) + '%' : '0';
+  $('count').textContent = '記録済み ' + done.length + ' / ' + total + ' 件';
+
+  var q = queue();
+  $('banner').innerHTML = q.length ? '<div class="banner">未送信の記録が ' + q.length + ' 件あります。電波が戻ると自動で送信します。</div>' : '';
+
+  var main = $('main');
+  if (!total) {
+    main.innerHTML = '<div class="card msg">本日の配送先が登録されていません。<br>配送管理担当者に確認してください。</div>';
+  } else if (!state.started) {
+    main.innerHTML = '<div class="card"><div class="label">本日の配送先 ' + total + ' 件</div>' +
+      '<button class="btn-start" onclick="start()">配送を開始</button></div>' +
+      (lsGet('hs_' + K.slice(0, 8), false) ? '' :
+        '<div class="banner" style="margin-top:12px;background:#eef4ff;color:#1d3d7a">このページを<b>ホーム画面に追加</b>しておくと、閉じても次からワンタップで開けます。<br>' +
+        'iPhone：Safariの共有ボタン →「ホーム画面に追加」／Android：Chromeの︙ →「ホーム画面に追加」<br>' +
+        '<a href="#" onclick="lsSet(\'hs_' + K.slice(0, 8) + '\', true); render(); return false;">次から表示しない</a></div>');
+  } else if (!todo.length) {
+    main.innerHTML = '<div class="card msg">本日の配送はすべて記録しました。<br>おつかれさまでした。</div>';
+  } else {
+    var cur = pickCurrent(todo);
+    var opts = todo.map(function (s) {
+      return '<option value="' + esc(s.id) + '"' + (s.id === cur.id ? ' selected' : '') + '>' + esc(s.order + '. ' + s.name) + '</option>';
+    }).join('');
+    main.innerHTML =
+      '<div class="card">' +
+        '<div class="label">配送先（タップで変更できます）</div>' +
+        '<div class="pick"><div class="no">配送順 ' + esc(cur.order) + '</div>' +
+          '<div class="name">' + esc(cur.name) + '</div><span class="chev">▼</span>' +
+          '<select onchange="choose(this.value)" aria-label="配送先を選ぶ">' + opts + '</select></div>' +
+        '<button class="btn-done" id="bDone" onclick="act(\'配達完了\')">配達完了</button>' +
+        '<button class="btn-skip" id="bSkip" onclick="act(\'本日配送なし\')">本日配送なし</button>' +
+      '</div>';
+  }
+
+  // 記録一覧（新しい順）＋残り
+  var html = '';
+  if (done.length) {
+    var sorted = done.slice().sort(function (a, b) {
+      var ta = a.time === '-' ? '' : a.time, tb = b.time === '-' ? '' : b.time;
+      return ta < tb ? 1 : ta > tb ? -1 : b.order - a.order;
+    });
+    html += '<h2>本日の記録</h2><ul class="log">' + sorted.map(function (s) {
+      var skip = s.status !== '配達完了';
+      return '<li><span class="t' + (skip ? ' skip' : '') + '">' + (skip ? '配送なし' : esc(s.time)) + '</span>' +
+        '<span class="n">' + esc(s.name) + (s.pending ? '<span class="pend">未送信</span>' : '') + '</span>' +
+        '<button onclick="undo(\'' + esc(s.id) + '\')">取消</button></li>';
+    }).join('') + '</ul>';
+  }
+  if (state.started && todo.length > 1) {
+    html += '<h2>残りの配送先</h2><ul class="log">' + todo.map(function (s) {
+      return '<li class="todo"><span class="t">' + esc(s.order) + '</span><span class="n">' + esc(s.name) + '</span></li>';
+    }).join('') + '</ul>';
+  }
+  $('lists').innerHTML = html;
+}
+
+/* 次の配送先：選択中 → 直前に記録した地点より後ろの最初の未記録 → 先頭の未記録 */
+function pickCurrent(todo) {
+  var c = todo.filter(function (s) { return s.id === state.currentId; })[0];
+  if (!c && state.lastOrder !== null) c = todo.filter(function (s) { return s.order > state.lastOrder; })[0];
+  if (!c) c = todo[0];
+  state.currentId = c.id;
+  return c;
+}
+
+/* ---------- 操作 ---------- */
+function start() {
+  state.started = true;
+  lsSet('st_' + K.slice(0, 8) + '_' + state.date, true);
+  render();
+}
+
+function choose(id) { state.currentId = id; render(); }
+
+function act(status) {
+  if (state.busy) return;
+  var v = view();
+  var s = v.filter(function (x) { return x.id === state.currentId; })[0];
+  if (!s) return;
+  if (status !== '配達完了' && !confirm('「' + s.name + '」を本日配送なしにしますか？')) return;
+  var tapTs = Date.now();
+  state.busy = true;
+  setButtons(false);
+
+  var finish = function (pos, geoErr) {
+    var item = { op: 'rec', date: state.date, stopId: s.id, status: status, clientTs: tapTs };
+    if (pos) { item.lat = pos.coords.latitude; item.lng = pos.coords.longitude; item.acc = pos.coords.accuracy; }
+    if (geoErr) item.geo = geoErr;
+    var q = queue().filter(function (x) { return !(x.date === item.date && x.stopId === item.stopId); });
+    q.push(item); setQueue(q);
+    state.lastOrder = s.order;
+    state.currentId = null;
+    state.busy = false;
+    overlay(false);
+    if (status === '配達完了') toast(hhmm(tapTs) + '　' + s.name + '　配達完了');
+    else toast(s.name + '　本日配送なし');
+    if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) {}
+    render();
+    flush();
+  };
+
+  if (status !== '配達完了') { finish(null, null); return; }
+  if (!navigator.geolocation) { finish(null, '非対応'); return; }
+  overlay(true, '位置情報を取得中…');
+  var doneOnce = false;
+  var guard = setTimeout(function () { if (!doneOnce) { doneOnce = true; geoWarn('時間切れ'); finish(null, '時間切れ'); } }, 9000);
+  navigator.geolocation.getCurrentPosition(function (pos) {
+    if (doneOnce) return; doneOnce = true; clearTimeout(guard); finish(pos, null);
+  }, function (err) {
+    if (doneOnce) return; doneOnce = true; clearTimeout(guard);
+    var why = err.code === 1 ? '許可なし' : err.code === 3 ? '時間切れ' : '取得不可';
+    geoWarn(why); finish(null, why);
+  }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 });
+}
+
+function geoWarn(why) {
+  if (state.geoWarned) return;
+  state.geoWarned = true;
+  setTimeout(function () { toast('位置情報を取得できませんでした（' + why + '）。時刻は記録しています'); }, 2300);
+}
+
+function setButtons(on) {
+  ['bDone', 'bSkip'].forEach(function (id) { var b = $(id); if (b) b.disabled = !on; });
+}
+
+function undo(id) {
+  var s = view().filter(function (x) { return x.id === id; })[0];
+  if (!s || !confirm('「' + s.name + '」の記録を取り消しますか？')) return;
+  var q = queue();
+  var had = q.some(function (x) { return x.date === state.date && x.stopId === id && x.op === 'rec'; });
+  q = q.filter(function (x) { return !(x.date === state.date && x.stopId === id); });
+  var serverHas = state.stops.some(function (x) { return x.id === id && x.status; });
+  if (serverHas) q.push({ op: 'undo', date: state.date, stopId: id });
+  setQueue(q);
+  state.currentId = id;
+  render();
+  if (serverHas || had) flush();
+}
+
+/* ---------- 送信（1件ずつ順番に） ---------- */
+var flushing = false;
+function flush() {
+  if (flushing) return;
+  var q = queue();
+  if (!q.length) return;
+  flushing = true;
+  var item = q[0];
+  var ok = function (s) {
+    var rest = queue().filter(function (x) { return x !== item && !(x.date === item.date && x.stopId === item.stopId && x.op === item.op && x.clientTs === item.clientTs); });
+    setQueue(rest);
+    flushing = false;
+    if (s && s.date === state.date) { state.stops = s.stops; }
+    render();
+    flush();
+  };
+  var ng = function (e) {
+    flushing = false;
+    var msg = (e && e.message) || '';
+    // サーバーが拒否した（通信エラーではない）ものはキューから外して知らせる
+    if (/無効|不正|見つかりません|割り当てられていません|未作成/.test(msg)) {
+      setQueue(queue().slice(1));
+      alert('記録できませんでした：' + msg);
+      load(false);
+      return;
+    }
+    render();
+    setTimeout(flush, 15000);
+  };
+  if (item.op === 'undo') run('api_undo', [K, item.date, item.stopId], ok, ng);
+  else run('api_record', [K, item], ok, ng);
+}
+
+if (!K) { $('main').innerHTML = '<div class="msg">URLが正しくありません。<br>配送管理担当者に確認してください。</div>'; }
+document.addEventListener('visibilitychange', function () { if (!document.hidden) load(false); });
+window.addEventListener('online', flush);
+if (K) load(false);
+</script>
+</body>
+</html>
