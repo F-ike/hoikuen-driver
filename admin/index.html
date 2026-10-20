@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<base target="_top">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>保育園配送 管理者画面</title>
+<meta charset="utf-8">
+<style>
+  :root { --bg:#f4f6f8; --card:#fff; --ink:#1d2733; --sub:#66727f; --line:#dde3ea; --ok:#1a8f4c; --run:#1f6feb; --idle:#8a96a3; --ng:#c62828; --ng-bg:#fdecea; --warn:#b54708; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif; font-size:14px; }
+  .wrap { max-width:1100px; margin:0 auto; padding:16px 16px 90px; }
+  header { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  h1 { font-size:18px; margin:0; }
+  h2 { font-size:16px; margin:18px 0 8px; }
+  nav { display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:14px; overflow-x:auto; }
+  nav button { border:0; border-bottom:3px solid transparent; border-radius:0; background:none; padding:10px 14px; font-size:15px; color:var(--sub); }
+  nav button.on { color:var(--run); border-bottom-color:var(--run); font-weight:700; }
+  .ctrl { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  input, select, textarea { font:inherit; font-size:15px; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); }
+  button, .btn { font:inherit; border:1px solid var(--line); background:#fff; border-radius:8px; padding:6px 12px; cursor:pointer; color:var(--ink); text-decoration:none; white-space:nowrap; display:inline-block; }
+  button:disabled { opacity:.5; cursor:default; }
+  button.primary, .btn.primary { background:var(--run); color:#fff; border-color:var(--run); }
+  button.danger { color:var(--ng); border-color:#f0b9b6; }
+  .meta { color:var(--sub); font-size:12px; margin-bottom:12px; }
+  .hint { color:var(--sub); font-size:12px; margin:4px 0 10px; }
+  .card { background:var(--card); border-radius:12px; box-shadow:0 1px 2px rgba(0,0,0,.06); padding:14px; margin-bottom:12px; }
+  .alerts { background:var(--ng-bg); border:1px solid #f5c2c0; border-radius:12px; padding:12px 14px; margin-bottom:14px; }
+  .alerts h2 { font-size:15px; margin:0 0 6px; color:var(--ng); }
+  .alerts ul { margin:0; padding-left:18px; } .alerts li { margin:3px 0; }
+  .ok-box { background:#e9f6ee; border:1px solid #bfe3cc; color:var(--ok); border-radius:12px; padding:10px 14px; margin-bottom:14px; }
+  .sum { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+  .sum div { background:var(--card); border-radius:10px; padding:8px 14px; box-shadow:0 1px 2px rgba(0,0,0,.06); }
+  .sum b { font-size:18px; margin-left:6px; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border-radius:12px; overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,.06); }
+  th, td { padding:9px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle; }
+  th { background:#eef2f6; font-size:12px; color:var(--sub); font-weight:600; }
+  tr.ng td { background:#fff7f6; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:12px; color:#fff; white-space:nowrap; }
+  .b-完了 { background:var(--ok); } .b-配送中 { background:var(--run); } .b-未開始 { background:var(--idle); } .b-エラー, .b-配送先なし { background:var(--ng); }
+  .bar { width:90px; height:6px; background:var(--line); border-radius:3px; overflow:hidden; display:inline-block; vertical-align:middle; margin-right:6px; }
+  .bar i { display:block; height:100%; background:var(--ok); }
+  .alert-txt { color:var(--ng); font-size:12px; }
+  .url { display:flex; gap:6px; align-items:center; }
+  .url button, .url a { padding:4px 8px; font-size:12px; }
+  .detail td { background:#fafbfc; padding:6px 10px 10px 28px; }
+  .stops { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:2px 16px; font-size:13px; }
+  .stops span.t { display:inline-block; width:62px; font-variant-numeric:tabular-nums; }
+  .stops .todo { color:var(--ng); } .stops .skip { color:var(--idle); }
+  .name { cursor:pointer; font-weight:600; } .name:hover { text-decoration:underline; }
+  .msg { padding:30px; text-align:center; color:var(--sub); }
+
+  /* 配送先の編集 */
+  .srow { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:8px 10px; margin-bottom:6px; display:grid;
+          grid-template-columns:auto 34px 1fr 1fr auto auto; grid-template-areas:"mv no nm rn sw tg" "more more more more more more"; gap:8px; align-items:center; }
+  .srow .mv { grid-area:mv; } .srow .no { grid-area:no; } .srow .nm { grid-area:nm; } .srow .rn { grid-area:rn; }
+  .srow .sw { grid-area:sw; } .srow .tg { grid-area:tg; } .srow .more { grid-area:more; }
+  .srow.off { background:#f5f5f5; color:var(--idle); }
+  .srow.off input.nm { color:var(--idle); text-decoration:line-through; }
+  .srow.new { border-color:var(--run); }
+  .srow.moved { border-color:var(--warn); background:#fff8f0; }
+  .srow .no { text-align:center; font-weight:700; font-variant-numeric:tabular-nums; }
+  .srow input { width:100%; padding:6px; }
+  .mv { display:flex; flex-direction:column; gap:2px; }
+  .mv button { padding:0 8px; font-size:11px; line-height:16px; }
+  .sw { display:inline-flex; align-items:center; gap:4px; cursor:pointer; font-size:13px; user-select:none; white-space:nowrap; }
+  .sw input { width:auto; }
+  .more { display:none; gap:10px; flex-wrap:wrap; align-items:center; font-size:13px; padding-top:4px; }
+  .srow.open .more { display:flex; }
+  .more label { display:flex; gap:4px; align-items:center; }
+  .more input, .more select { width:auto; font-size:13px; }
+  .savebar { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line); padding:10px 16px; display:none; justify-content:center; gap:10px; align-items:center; box-shadow:0 -2px 8px rgba(0,0,0,.06); }
+  .savebar.show { display:flex; }
+  .savebar span { color:var(--warn); font-size:13px; }
+  .ccard { display:grid; grid-template-columns:150px 1fr 110px auto; gap:10px; align-items:center; }
+  .ccard .cn { font-weight:700; }
+  .ccard input { width:100%; }
+  .ccard .acts { display:flex; gap:6px; flex-wrap:wrap; }
+  .form-row { display:flex; gap:10px; align-items:center; margin:10px 0; flex-wrap:wrap; }
+  .form-row > label:first-child { width:140px; color:var(--sub); }
+  .days label { margin-right:8px; }
+  .toast { position:fixed; left:50%; bottom:80px; transform:translateX(-50%); background:rgba(29,39,51,.92); color:#fff; padding:10px 18px; border-radius:22px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:10; max-width:90%; text-align:center; }
+  .toast.show { opacity:1; }
+  @media (max-width:760px) {
+    .hide-sp { display:none; } .bar { display:none; } .url { flex-direction:column; align-items:stretch; }
+    th, td { padding:8px 6px; } .wrap { padding:12px 12px 90px; }
+    .srow { grid-template-columns:auto 26px 1fr auto; grid-template-areas:"mv no nm nm" "mv no rn rn" ". . sw tg" "more more more more"; gap:6px; }
+    .srow .sw { justify-self:start; }
+    .ccard { grid-template-columns:1fr 1fr; }
+    .ccard .cn { grid-column:1 / -1; } .ccard .acts { grid-column:1 / -1; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>保育園配送 管理者画面</h1>
+    <a class="btn" id="sheetLink" href="#" target="_blank">管理シートを開く</a>
+  </header>
+  <nav id="nav">
+    <button data-tab="status" class="on">今日の状況</button>
+    <button data-tab="stops">配送先</button>
+    <button data-tab="courses">コース・業者</button>
+    <button data-tab="report">月報</button>
+    <button data-tab="settings">アラート設定</button>
+  </nav>
+
+  <!-- 今日の状況 -->
+  <section id="tab-status">
+    <div class="ctrl" style="margin-bottom:8px"><input type="date" id="date"><button class="primary" onclick="loadStatus()">表示</button></div>
+    <div class="meta" id="meta"></div>
+    <div id="alerts"></div>
+    <div class="sum" id="sum"></div>
+    <div id="table"><div class="msg">読み込み中…（全コースを集計するので数秒かかります）</div></div>
+  </section>
+
+  <!-- 配送先 -->
+  <section id="tab-stops" hidden>
+    <div class="ctrl"><label>コース</label><select id="stopCourse" onchange="switchCourse()"></select></div>
+    <div class="hint">▲▼で配送順を入れ替え。やめる園は「有効」を外す（過去の記録・月報のため削除はしません）。「詳細」で開始日・終了日・別コースへの移動。最後に下の「保存」。</div>
+    <div id="stopList"></div>
+    <button onclick="addStop()">＋ 配送先を追加</button>
+  </section>
+
+  <!-- コース・業者 -->
+  <section id="tab-courses" hidden>
+    <div class="hint">業者を替えたら、業者名を直して「保存」→「URL再発行」。旧URLはその場で使えなくなるので、新しいURLを新しい業者に渡してください。<br>締め時刻を過ぎて未記録があるとアラートになります（空欄は標準締め時刻）。</div>
+    <div id="courseList"></div>
+  </section>
+
+  <!-- 月報 -->
+  <section id="tab-report" hidden>
+    <div class="card">
+      <div class="form-row"><label>対象月</label><select id="ym"></select><button class="primary" id="btnReport" onclick="makeReport()">月報を作成</button></div>
+      <div class="hint">従来のExcel「リスト」シートと同じ形で作り、Excelファイルをドライブの「Oisix／月報」フォルダに保存します。同じ月をもう一度作ると作り直します。</div>
+      <div id="reportResult"></div>
+    </div>
+  </section>
+
+  <!-- アラート設定 -->
+  <section id="tab-settings" hidden>
+    <div class="card">
+      <div class="form-row"><label>メール宛先</label><textarea id="sTo" rows="2" style="flex:1;min-width:260px" placeholder="a@logiquest.co.jp, b@logiquest.co.jp"></textarea></div>
+      <div class="form-row"><label>送る時刻</label><select id="sHour"></select><span class="hint" style="margin:0">（その時台のどこかで送信。アラートがある日だけ）</span></div>
+      <div class="form-row"><label>稼働曜日</label><span class="days" id="sDays"></span><span class="hint" style="margin:0">祝日は自動で除外</span></div>
+      <div class="form-row"><label>標準締め時刻</label><input id="sDl" type="time" style="width:130px"><span class="hint" style="margin:0">コースごとの締め時刻が空のときに使う</span></div>
+      <div class="form-row"><label></label><button class="primary" onclick="saveSettings()">保存</button><button onclick="testMail()">テストメールを送る</button><span id="sState" class="hint" style="margin:0"></span></div>
+    </div>
+  </section>
+</div>
+
+<div class="savebar" id="savebar"><span>未保存の変更があります</span><button onclick="discardStops()">元に戻す</button><button class="primary" id="btnSave" onclick="saveStops()">保存</button></div>
+<div class="toast" id="toast"></div>
+
+<script>
+var AK = (new URLSearchParams(location.search).get('admin') || '').trim(); var API_URL = "https://script.google.com/macros/s/AKfycbx4_IB8kYgLIm9uTthV0cpZCLAGcVcgGr2SIPlTWmNHGcBme3_S_M00yevcHt0Wbj1M5w/exec";
+var M = null;            // マスタ（コース・配送先・設定）
+var draft = null;        // 配送先タブの編集中データ
+var dirty = false;
+var openMap = {}, timer = null, curTab = 'status';
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function ymd(d){ return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+function toast(t){ var el=$('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(function(){ el.classList.remove('show'); }, 2600); }
+/* サーバー呼び出し：GASの画面なら google.script.run、外部の入口ページならGASのdoPostへfetch（Cookieは送らない） */
+function rpc(fn, args, ok, ng){
+  if (!API_URL && window.google && google.script && google.script.run) {
+    var r = google.script.run.withSuccessHandler(ok).withFailureHandler(ng);
+    r[fn].apply(r, args);
+    return;
+  }
+  fetch(API_URL, { method: 'POST', credentials: 'omit', redirect: 'follow',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args }) })
+    .then(function(res){ return res.json(); })
+    .then(function(j){ if (j && j.ok) ok(j.data); else ng(new Error((j && j.error) || 'エラーが発生しました')); })
+    .catch(function(){ ng(new Error('通信できません。電波の良い場所でもう一度お試しください')); });
+}
+function call(fn, args, ok, btn){
+  if (btn) btn.disabled = true;
+  rpc(fn, [AK].concat(args), function(x){ if (btn) btn.disabled = false; ok(x); },
+    function(e){ if (btn) btn.disabled = false; alert('エラー：' + (e && e.message || e)); });
+}
+
+/* ---------- タブ ---------- */
+Array.prototype.forEach.call(document.querySelectorAll('#nav button'), function(b){
+  b.onclick = function(){ showTab(b.getAttribute('data-tab')); };
+});
+function showTab(t){
+  if (curTab === 'stops' && t !== 'stops' && dirty && !confirm('配送先の変更が保存されていません。破棄して移動しますか？')) return;
+  if (curTab === 'stops' && t !== 'stops' && dirty) discardStops();
+  curTab = t;
+  Array.prototype.forEach.call(document.querySelectorAll('#nav button'), function(b){ b.classList.toggle('on', b.getAttribute('data-tab') === t); });
+  ['status','stops','courses','report','settings'].forEach(function(x){ $('tab-' + x).hidden = x !== t; });
+  if (t !== 'status' && !M) loadMaster(); else renderTab();
+}
+function renderTab(){
+  if (curTab === 'stops') renderStops();
+  if (curTab === 'courses') renderCourses();
+  if (curTab === 'settings') renderSettings();
+}
+window.addEventListener('beforeunload', function(e){ if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+function loadMaster(cb){
+  call('api_mgrGetMaster', [], function(m){ setMaster(m); if (cb) cb(); });
+}
+function setMaster(m){
+  M = m;
+  if (m.sheetUrl) $('sheetLink').href = m.sheetUrl;
+  var sel = $('stopCourse'), cur = sel.value;
+  sel.innerHTML = M.courses.map(function(c){ return '<option value="' + esc(c.id) + '">' + esc(c.name) + (c.vendor ? '（' + esc(c.vendor) + '）' : '') + '</option>'; }).join('');
+  if (cur) sel.value = cur;
+  draft = null; dirty = false; $('savebar').classList.remove('show');
+  renderTab();
+}
+
+/* ---------- 今日の状況 ---------- */
+$('date').value = ymd(new Date());
+function loadStatus(){
+  $('meta').textContent = '集計中…';
+  rpc('api_adminOverview', [AK, $('date').value], renderStatus, function(e){ $('meta').textContent = 'エラー：' + (e && e.message || e); });
+}
+function renderStatus(ov){
+  var d = ov.date.split('-');
+  var wd = '日月火水木金土'.charAt(new Date(+d[0], d[1]-1, +d[2]).getDay());
+  $('meta').textContent = (+d[1])+'/'+(+d[2])+'（'+wd+'）' + (ov.workday ? '' : '・稼働日外（アラート対象外）') +
+    '　｜　' + (ov.date === ov.today ? ov.now + ' 時点・2分ごとに自動更新' : '過去／未来の日付');
+  $('alerts').innerHTML = ov.alerts.length
+    ? '<div class="alerts"><h2>アラート ' + ov.alerts.length + '件</h2><ul>' + ov.alerts.map(function(a){
+        return '<li><b>' + esc(a.name) + '</b>' + (a.vendor ? '（' + esc(a.vendor) + '）' : '') + '：' + esc(a.message) + '</li>'; }).join('') + '</ul></div>'
+    : (ov.workday ? '<div class="ok-box">アラートはありません</div>' : '');
+  var cnt = {完了:0, 配送中:0, 未開始:0};
+  ov.courses.forEach(function(c){ if (cnt[c.status] !== undefined) cnt[c.status]++; });
+  $('sum').innerHTML = ['完了','配送中','未開始'].map(function(k){ return '<div>' + k + '<b>' + cnt[k] + '</b></div>'; }).join('') + '<div>全コース<b>' + ov.courses.length + '</b></div>';
+  var rows = ov.courses.map(function(c, i){
+    var rec = c.done + c.skip, pct = c.total ? Math.round(rec / c.total * 100) : 0;
+    var h = '<tr class="' + (c.alert ? 'ng' : '') + '">' +
+      '<td><span class="name" onclick="toggle(\'' + esc(c.id) + '\')">' + (openMap[c.id] ? '▾ ' : '▸ ') + esc(c.name) + '</span>' +
+        (c.alert ? '<div class="alert-txt">' + esc(c.alert) + '</div>' : '') + '</td>' +
+      '<td class="hide-sp">' + esc(c.vendor || '—') + '</td>' +
+      '<td><span class="badge b-' + esc(c.status) + '">' + esc(c.status) + '</span></td>' +
+      '<td><span class="bar"><i style="width:' + pct + '%"></i></span>' + rec + ' / ' + c.total +
+        (c.skip ? '<span style="color:#8a96a3;font-size:12px">（なし' + c.skip + '）</span>' : '') + '</td>' +
+      '<td class="hide-sp">' + esc(c.first ? c.first + '〜' + c.last : '—') + '</td>' +
+      '<td class="hide-sp">' + esc(c.deadline) + '</td>' +
+      '<td>' + (c.url ? '<div class="url"><button onclick="copyText(\'' + esc(c.url) + '\')">URLコピー</button><a class="btn" href="' + esc(c.url) + '" target="_blank">開く</a></div>' : '<span class="alert-txt">URL未発行</span>') + '</td></tr>';
+    if (openMap[c.id]) {
+      h += '<tr class="detail"><td colspan="7"><div class="stops">' + c.stops.map(function(s){
+        var cls = s.status === '配達完了' ? '' : s.status ? 'skip' : 'todo';
+        var t = s.status === '配達完了' ? s.time : s.status ? '配送なし' : '未記録';
+        return '<div class="' + cls + '"><span class="t">' + esc(t) + '</span>' + esc(s.order) + '. ' + esc(s.name) + '</div>'; }).join('') + '</div></td></tr>';
+    }
+    return h;
+  }).join('');
+  $('table').innerHTML = '<table><thead><tr><th>コース（クリックで明細）</th><th class="hide-sp">業者</th><th>状態</th><th>記録</th>' +
+    '<th class="hide-sp">完了時刻</th><th class="hide-sp">締め</th><th>ドライバー用URL</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  window._ov = ov;
+  clearTimeout(timer);
+  if (ov.date === ov.today) timer = setTimeout(autoRefresh, 120000);
+}
+function autoRefresh(){ if (curTab === 'status') loadStatus(); else timer = setTimeout(autoRefresh, 120000); }
+function toggle(id){ openMap[id] = !openMap[id]; if (window._ov) renderStatus(window._ov); }
+
+function copyText(t){
+  var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
+  var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+  if (!ok && navigator.clipboard) { try { navigator.clipboard.writeText(t); ok = true; } catch (e) {} }
+  document.body.removeChild(ta);
+  if (ok) toast('コピーしました'); else prompt('このURLをコピーしてください', t);
+}
+
+/* ---------- 配送先 ---------- */
+function switchCourse(){
+  if (dirty && !confirm('保存していない変更があります。破棄してコースを切り替えますか？')) { $('stopCourse').value = draft.courseId; return; }
+  draft = null; dirty = false; $('savebar').classList.remove('show'); renderStops();
+}
+function buildDraft(){
+  var cid = $('stopCourse').value || (M.courses[0] && M.courses[0].id);
+  var list = M.stops.filter(function(s){ return s.courseId === cid; }).sort(function(a, b){
+    return (b.active - a.active) || (a.order - b.order);
+  });
+  draft = { courseId: cid, rows: list.map(function(s){
+    return { id: s.id, name: s.name, reportName: s.reportName, active: s.active, start: s.start, end: s.end, courseId: s.courseId, open: false };
+  }) };
+}
+function renderStops(){
+  if (!M) return;
+  if (!draft) buildDraft();
+  var opts = function(sel){ return M.courses.map(function(c){ return '<option value="' + esc(c.id) + '"' + (c.id === sel ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join(''); };
+  var n = 0;
+  $('stopList').innerHTML = draft.rows.map(function(r, i){
+    var moved = r.courseId !== draft.courseId;
+    var no = (!moved && r.active) ? ++n : '—';
+    return '<div class="srow' + (r.active ? '' : ' off') + (r.id ? '' : ' new') + (moved ? ' moved' : '') + (r.open ? ' open' : '') + '">' +
+      '<div class="mv"><button onclick="mv(' + i + ',-1)" title="上へ">▲</button><button onclick="mv(' + i + ',1)" title="下へ">▼</button></div>' +
+      '<div class="no">' + no + '</div>' +
+      '<input class="nm" value="' + esc(r.name) + '" placeholder="表示名（ドライバー画面）" oninput="ed(' + i + ',\'name\',this.value)">' +
+      '<input class="rn" value="' + esc(r.reportName) + '" placeholder="リストの名称（月報）" oninput="ed(' + i + ',\'reportName\',this.value)">' +
+      '<label class="sw"><input type="checkbox"' + (r.active ? ' checked' : '') + ' onchange="ed(' + i + ',\'active\',this.checked,true)">有効</label>' +
+      '<button class="tg" onclick="tg(' + i + ')">詳細' + (r.open ? '▴' : '▾') + '</button>' +
+      '<div class="more">' +
+        '<label>開始日 <input type="date" value="' + esc(r.start) + '" onchange="ed(' + i + ',\'start\',this.value)"></label>' +
+        '<label>終了日 <input type="date" value="' + esc(r.end) + '" onchange="ed(' + i + ',\'end\',this.value)"></label>' +
+        '<label>コース <select onchange="ed(' + i + ',\'courseId\',this.value,true)">' + opts(r.courseId) + '</select></label>' +
+        (moved ? '<span style="color:#b54708">保存すると移動先コースの最後に入ります</span>' : '') +
+        (r.id ? '<span class="hint" style="margin:0">ID ' + esc(r.id) + '</span>' : '<button class="danger" onclick="rmNew(' + i + ')">この行を消す</button>') +
+      '</div></div>';
+  }).join('') || '<div class="msg">このコースには配送先がありません</div>';
+}
+function markDirty(){ dirty = true; $('savebar').classList.add('show'); }
+function ed(i, k, v, rerender){ draft.rows[i][k] = v; markDirty(); if (rerender) renderStops(); }
+function tg(i){ draft.rows[i].open = !draft.rows[i].open; renderStops(); }
+function mv(i, d){
+  var j = i + d; if (j < 0 || j >= draft.rows.length) return;
+  var t = draft.rows[i]; draft.rows[i] = draft.rows[j]; draft.rows[j] = t;
+  markDirty(); renderStops();
+}
+function addStop(){
+  if (!draft) buildDraft();
+  var firstOff = draft.rows.findIndex(function(r){ return !r.active; });
+  var row = { id: '', name: '', reportName: '', active: true, start: '', end: '', courseId: draft.courseId, open: false };
+  if (firstOff < 0) draft.rows.push(row); else draft.rows.splice(firstOff, 0, row);
+  markDirty(); renderStops();
+  var inputs = document.querySelectorAll('#stopList .srow.new input.nm'); if (inputs.length) inputs[inputs.length - 1].focus();
+}
+function rmNew(i){ draft.rows.splice(i, 1); markDirty(); renderStops(); }
+function discardStops(){ draft = null; dirty = false; $('savebar').classList.remove('show'); renderStops(); }
+function saveStops(){
+  var empty = draft.rows.filter(function(r){ return !r.id && !String(r.name).trim(); }).length;
+  if (empty && !confirm('名前が空の新しい行が ' + empty + ' 件あります。空の行は保存しません。続けますか？')) return;
+  var bad = draft.rows.filter(function(r){ return r.start && r.end && r.start > r.end; });
+  if (bad.length) { alert('開始日が終了日より後になっています：' + bad.map(function(r){ return r.name; }).join('、')); return; }
+  var cid = draft.courseId;
+  // 有効（このコース）→ 停止 の順で並べた画面の順番をそのまま配送順にする
+  var rows = draft.rows.filter(function(r){ return r.active; }).concat(draft.rows.filter(function(r){ return !r.active; }));
+  call('api_mgrSaveStops', [cid, rows], function(m){ setMaster(m); $('stopCourse').value = cid; renderStops(); toast('保存しました（ドライバー画面にも反映されます）'); }, $('btnSave'));
+}
+
+/* ---------- コース・業者 ---------- */
+function renderCourses(){
+  if (!M) return;
+  $('courseList').innerHTML = M.courses.map(function(c, i){
+    var cnt = M.stops.filter(function(s){ return s.courseId === c.id && s.active; }).length;
+    return '<div class="card ccard">' +
+      '<div class="cn">' + esc(c.name) + '<div class="hint" style="margin:2px 0 0">配送先 ' + cnt + '件' + (c.active ? '' : '・停止中') + '</div></div>' +
+      '<input id="cv' + i + '" value="' + esc(c.vendor) + '" placeholder="業者名">' +
+      '<input id="cd' + i + '" type="time" value="' + esc(c.deadline) + '" title="締め時刻">' +
+      '<div class="acts">' +
+        '<label class="sw"><input type="checkbox" id="ca' + i + '"' + (c.active ? ' checked' : '') + '>有効</label>' +
+        '<button class="primary" onclick="saveCourse(' + i + ',this)">保存</button>' +
+        (c.url ? '<button onclick="copyText(\'' + esc(c.url) + '\')">URLコピー</button><a class="btn" href="' + esc(c.url) + '" target="_blank">開く</a>' : '<span class="alert-txt">URL未発行</span>') +
+        '<button class="danger" onclick="reissue(' + i + ',this)">URL再発行</button>' +
+      '</div></div>';
+  }).join('');
+}
+function saveCourse(i, btn){
+  var c = M.courses[i];
+  call('api_mgrSaveCourse', [c.id, { vendor: $('cv' + i).value, deadline: $('cd' + i).value, active: $('ca' + i).checked }], function(m){ setMaster(m); toast(c.name + ' を保存しました'); }, btn);
+}
+function reissue(i, btn){
+  var c = M.courses[i];
+  if (!confirm(c.name + ' のURLを再発行します。\n今のURLはすぐに使えなくなります（今のドライバーは開けなくなります）。\nよろしいですか？')) return;
+  call('api_mgrReissueKey', [c.id], function(m){ setMaster(m); toast('再発行しました。「URLコピー」で新しいURLを渡してください'); }, btn);
+}
+
+/* ---------- 月報 ---------- */
+(function(){
+  var now = new Date(), h = '';
+  for (var i = 0; i < 13; i++) {
+    var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    h += '<option value="' + d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '"' + (i === 1 ? ' selected' : '') + '>' +
+      d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + (i === 0 ? '（今月・途中まで）' : '') + '</option>';
+  }
+  $('ym').innerHTML = h;
+})();
+function makeReport(){
+  $('reportResult').innerHTML = '<p class="hint">作成中…（全コースを読むので30秒〜1分ほどかかります）</p>';
+  call('api_mgrMonthly', [$('ym').value], function(r){
+    $('reportResult').innerHTML = '<p><b>' + esc(r.name) + '</b> を作成しました（' + r.rows + '行）</p>' +
+      (r.errors.length ? '<p class="alert-txt">読めなかった記録シート：' + esc(r.errors.join('、')) + '</p>' : '') +
+      '<div class="ctrl"><a class="btn primary" href="' + esc(r.downloadUrl) + '" target="_blank">Excelをダウンロード</a>' +
+      '<a class="btn" href="' + esc(r.xlsxUrl) + '" target="_blank">ドライブで見る</a>' +
+      '<a class="btn" href="' + esc(r.openUrl) + '" target="_blank">管理シートで開く</a></div>' +
+      '<p class="hint">ファイル名：' + esc(r.xlsxName) + '</p>';
+  }, $('btnReport'));
+}
+
+/* ---------- アラート設定 ---------- */
+function renderSettings(){
+  if (!M) return;
+  var s = M.settings;
+  $('sTo').value = String(s.alertTo || '').split(',').join(', ');
+  var h = ''; for (var i = 0; i < 24; i++) h += '<option value="' + i + '"' + (String(i) === String(s.alertHour) ? ' selected' : '') + '>' + i + '時台</option>';
+  $('sHour').innerHTML = h;
+  $('sDays').innerHTML = '月火水木金土日'.split('').map(function(d){ return '<label><input type="checkbox" value="' + d + '"' + (s.workdays.indexOf(d) >= 0 ? ' checked' : '') + '> ' + d + '</label>'; }).join('');
+  $('sDl').value = s.defDeadline;
+  $('sState').textContent = s.alertOn ? '● 毎日のメール：設定済み' : '○ 毎日のメール：未設定（宛先を入れて保存すると設定されます）';
+}
+function saveSettings(){
+  var days = Array.prototype.map.call(document.querySelectorAll('#sDays input:checked'), function(x){ return x.value; }).join('');
+  call('api_mgrSaveSettings', [{ alertTo: $('sTo').value, alertHour: $('sHour').value, workdays: days, defDeadline: $('sDl').value }], function(m){ setMaster(m); toast('保存しました'); });
+}
+function testMail(){
+  if (!confirm('今の宛先にテストメールを送ります（先に「保存」してください）。')) return;
+  call('api_mgrTestMail', [], function(msg){ toast(msg); });
+}
+
+if (!AK) { $('meta').textContent = 'URLが正しくありません（管理者キーがありません）'; }
+else { loadStatus(); if (API_URL) loadMaster(); }
+</script>
+</body>
+</html>

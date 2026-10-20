@@ -52,6 +52,17 @@
   .toast.show { opacity: 1; }
   .overlay { position: fixed; inset: 0; background: rgba(255,255,255,.7); display: none; align-items: center; justify-content: center; font-size: 16px; }
   .overlay.show { display: flex; }
+  .dlg { position: fixed; inset: 0; background: rgba(29,39,51,.45); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 5; }
+  .dlg.show { display: flex; }
+  .dlg .box { background: #fff; border-radius: 14px; padding: 18px 16px; width: 100%; max-width: 360px; }
+  .dlg .box h3 { margin: 0 0 4px; font-size: 16px; }
+  .dlg .box p { margin: 0 0 12px; color: var(--sub); font-size: 13px; }
+  .dlg input[type=time] { font-size: 28px; padding: 8px 10px; width: 100%; border: 2px solid var(--line); border-radius: 10px; text-align: center; }
+  .dlg .row { display: flex; gap: 10px; margin-top: 14px; }
+  .dlg .row button { padding: 14px 0; font-size: 16px; }
+  .dlg .ok { background: var(--go); color: #fff; font-weight: 700; }
+  .dlg .cancel { background: #e9edf1; color: var(--skip); }
+  ul.log .acts { display: flex; gap: 2px; flex: none; }
   .reload { display: block; margin: 24px auto 0; width: auto; background: none; color: var(--accent); font-size: 14px; padding: 8px; }
 </style>
 </head>
@@ -70,6 +81,12 @@
 </div>
 <div class="toast" id="toast"></div>
 <div class="overlay" id="overlay"><span id="overlayText">位置情報を取得中…</span></div>
+<div class="dlg" id="dlg"><div class="box">
+  <h3 id="dlgName"></h3>
+  <p>実際に届けた時刻に直してください</p>
+  <input type="time" id="dlgTime">
+  <div class="row"><button class="cancel" onclick="closeEdit()">やめる</button><button class="ok" onclick="saveEdit()">この時刻にする</button></div>
+</div></div>
 
 <script>
 var K = (new URLSearchParams(location.search).get('k') || '').trim(); var API_URL = "https://script.google.com/macros/s/AKfycbx4_IB8kYgLIm9uTthV0cpZCLAGcVcgGr2SIPlTWmNHGcBme3_S_M00yevcHt0Wbj1M5w/exec";
@@ -144,6 +161,7 @@ function view() {
     q.forEach(function (x) {
       if (x.stopId !== s.id) return;
       if (x.op === 'undo') { o.status = ''; o.time = ''; }
+      else if (x.op === 'edit') { o.time = x.time; }
       else { o.status = x.status; o.time = x.status === '配達完了' ? hhmm(x.clientTs) : '-'; }
       o.pending = true;
     });
@@ -206,7 +224,8 @@ function render() {
       var skip = s.status !== '配達完了';
       return '<li><span class="t' + (skip ? ' skip' : '') + '">' + (skip ? '配送なし' : esc(s.time)) + '</span>' +
         '<span class="n">' + esc(s.name) + (s.pending ? '<span class="pend">未送信</span>' : '') + '</span>' +
-        '<button onclick="undo(\'' + esc(s.id) + '\')">取消</button></li>';
+        '<span class="acts">' + (skip ? '' : '<button onclick="openEdit(\'' + esc(s.id) + '\')">時刻修正</button>') +
+        '<button onclick="undo(\'' + esc(s.id) + '\')">取消</button></span></li>';
     }).join('') + '</ul>';
   }
   if (state.started && todo.length > 1) {
@@ -300,6 +319,38 @@ function undo(id) {
   if (serverHas || had) flush();
 }
 
+/* ---------- 時刻の修正 ---------- */
+var editId = null;
+function openEdit(id) {
+  var s = view().filter(function (x) { return x.id === id; })[0];
+  if (!s || s.status !== '配達完了') return;
+  editId = id;
+  $('dlgName').textContent = s.name;
+  $('dlgTime').value = s.time;
+  $('dlg').classList.add('show');
+}
+function closeEdit() { editId = null; $('dlg').classList.remove('show'); }
+function saveEdit() {
+  var t = $('dlgTime').value;
+  if (!/^\d{2}:\d{2}$/.test(t)) { alert('時刻を入れてください'); return; }
+  var now = new Date(), d = state.date.split('-');
+  var at = new Date(+d[0], d[1] - 1, +d[2], +t.slice(0, 2), +t.slice(3, 5));
+  if (at.getTime() > now.getTime() + 5 * 60000) { alert('これから先の時刻にはできません'); return; }
+  var id = editId, q = queue();
+  var pend = q.filter(function (x) { return x.date === state.date && x.stopId === id && x.op === 'rec'; })[0];
+  if (pend) {
+    pend.clientTs = at.getTime();  // まだ送っていない記録なら、その時刻を書き換えるだけ
+  } else {
+    q = q.filter(function (x) { return !(x.date === state.date && x.stopId === id && x.op === 'edit'); });
+    q.push({ op: 'edit', date: state.date, stopId: id, time: t });
+  }
+  setQueue(q);
+  closeEdit();
+  render();
+  toast('時刻を ' + t + ' に修正しました');
+  flush();
+}
+
 /* ---------- 送信（1件ずつ順番に） ---------- */
 var flushing = false;
 function flush() {
@@ -309,7 +360,7 @@ function flush() {
   flushing = true;
   var item = q[0];
   var ok = function (s) {
-    var rest = queue().filter(function (x) { return x !== item && !(x.date === item.date && x.stopId === item.stopId && x.op === item.op && x.clientTs === item.clientTs); });
+    var rest = queue().filter(function (x) { return !(x.date === item.date && x.stopId === item.stopId && x.op === item.op && x.clientTs === item.clientTs && x.time === item.time); });
     setQueue(rest);
     flushing = false;
     if (s && s.date === state.date) { state.stops = s.stops; }
@@ -320,7 +371,7 @@ function flush() {
     flushing = false;
     var msg = (e && e.message) || '';
     // サーバーが拒否した（通信エラーではない）ものはキューから外して知らせる
-    if (/無効|不正|見つかりません|割り当てられていません|未作成/.test(msg)) {
+    if (/無効|不正|見つかりません|割り当てられていません|未作成|できません|ありません/.test(msg) && msg !== '通信できません') {
       setQueue(queue().slice(1));
       alert('記録できませんでした：' + msg);
       load(false);
@@ -330,6 +381,7 @@ function flush() {
     setTimeout(flush, 15000);
   };
   if (item.op === 'undo') run('api_undo', [K, item.date, item.stopId], ok, ng);
+  else if (item.op === 'edit') run('api_editTime', [K, item.date, item.stopId, item.time], ok, ng);
   else run('api_record', [K, item], ok, ng);
 }
 
