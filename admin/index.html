@@ -281,7 +281,7 @@ function buildDraft(){
     return (b.active - a.active) || (a.order - b.order);
   });
   draft = { courseId: cid, rows: list.map(function(s){
-    return { id: s.id, name: s.name, reportName: s.reportName, active: s.active, start: s.start, end: s.end, courseId: s.courseId, open: false };
+    return { id: s.id, name: s.name, reportName: s.reportName, active: s.active, start: s.start, end: s.end, courseId: s.courseId, tw: s.tw || '', code: s.code || '', rule: s.rule || '', open: false };
   }) };
 }
 function renderStops(){
@@ -294,17 +294,19 @@ function renderStops(){
     var no = (!moved && r.active) ? ++n : '—';
     return '<div class="srow' + (r.active ? '' : ' off') + (r.id ? '' : ' new') + (moved ? ' moved' : '') + (r.open ? ' open' : '') + '">' +
       '<div class="mv"><button onclick="mv(' + i + ',-1)" title="上へ">▲</button><button onclick="mv(' + i + ',1)" title="下へ">▼</button></div>' +
-      '<div class="no">' + no + '</div>' +
+      '<div class="no">' + no + (r.rule ? '<div style="font-size:10px;color:#8a5a00" title="配送ルールあり">ルール</div>' : '') + '</div>' +
       '<input class="nm" value="' + esc(r.name) + '" placeholder="表示名（ドライバー画面）" oninput="ed(' + i + ',\'name\',this.value)">' +
       '<input class="rn" value="' + esc(r.reportName) + '" placeholder="リストの名称（月報）" oninput="ed(' + i + ',\'reportName\',this.value)">' +
       '<label class="sw"><input type="checkbox"' + (r.active ? ' checked' : '') + ' onchange="ed(' + i + ',\'active\',this.checked,true)">有効</label>' +
       '<button class="tg" onclick="tg(' + i + ')">詳細' + (r.open ? '▴' : '▾') + '</button>' +
       '<div class="more">' +
+        '<label>時間枠 <input value="' + esc(r.tw) + '" placeholder="8:00-10:00" style="width:110px" oninput="ed(' + i + ',\'tw\',this.value)"></label>' +
+        '<label style="flex-basis:100%">配送ルール<textarea rows="2" style="flex:1;font:inherit;font-size:13px;padding:6px;border:1px solid #dde3ea;border-radius:8px" oninput="ed(' + i + ',\'rule\',this.value)">' + esc(r.rule) + '</textarea></label>' +
         '<label>開始日 <input type="date" value="' + esc(r.start) + '" onchange="ed(' + i + ',\'start\',this.value)"></label>' +
         '<label>終了日 <input type="date" value="' + esc(r.end) + '" onchange="ed(' + i + ',\'end\',this.value)"></label>' +
         '<label>コース <select onchange="ed(' + i + ',\'courseId\',this.value,true)">' + opts(r.courseId) + '</select></label>' +
         (moved ? '<span style="color:#b54708">保存すると移動先コースの最後に入ります</span>' : '') +
-        (r.id ? '<span class="hint" style="margin:0">ID ' + esc(r.id) + '</span>' : '<button class="danger" onclick="rmNew(' + i + ')">この行を消す</button>') +
+        (r.id ? '<span class="hint" style="margin:0">ID ' + esc(r.id) + (r.code ? '／お届け先コード ' + esc(r.code) : '') + '</span>' : '<button class="danger" onclick="rmNew(' + i + ')">この行を消す</button>') +
       '</div></div>';
   }).join('') || '<div class="msg">このコースには配送先がありません</div>';
 }

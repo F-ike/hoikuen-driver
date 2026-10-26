@@ -26,6 +26,7 @@
   .pick { position: relative; border: 2px solid var(--line); border-radius: 12px; padding: 14px 40px 14px 14px; min-height: 64px; }
   .pick .no { font-size: 13px; color: var(--sub); }
   .pick .name { font-size: 24px; font-weight: 700; line-height: 1.3; word-break: break-all; }
+  .pick .tw { font-size: 14px; color: var(--accent); font-weight: 600; margin-top: 2px; }
   .pick .chev { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--sub); font-size: 20px; }
   .pick select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; }
   .hint { font-size: 12px; color: var(--sub); margin: 6px 2px 0; }
@@ -63,6 +64,15 @@
   .dlg .ok { background: var(--go); color: #fff; font-weight: 700; }
   .dlg .cancel { background: #e9edf1; color: var(--skip); }
   ul.log .acts { display: flex; gap: 2px; flex: none; }
+  .rule { margin-top: 12px; background: #fff8e6; border: 1px solid #f3d58a; border-radius: 10px; padding: 10px 12px; }
+  .rule .rh { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #8a5a00; font-weight: 700; }
+  .rule .rh button { width: auto; background: none; color: var(--accent); font-size: 14px; padding: 2px 4px; }
+  .rule .rt { margin-top: 4px; font-size: 15px; white-space: pre-wrap; word-break: break-all; line-height: 1.5; }
+  .rule.empty { background: #f6f8fa; border-color: var(--line); }
+  .rule.empty .rh { color: var(--sub); font-weight: 400; }
+  ul.log .sub { display: block; font-size: 12px; color: var(--sub); }
+  ul.log .mark { display: inline-block; font-size: 11px; color: #8a5a00; background: #fff3d6; border-radius: 6px; padding: 0 6px; margin-left: 4px; }
+  .dlg textarea { width: 100%; min-height: 160px; font-size: 16px; padding: 10px; border: 2px solid var(--line); border-radius: 10px; font-family: inherit; }
   .reload { display: block; margin: 24px auto 0; width: auto; background: none; color: var(--accent); font-size: 14px; padding: 8px; }
 </style>
 </head>
@@ -86,6 +96,13 @@
   <p>実際に届けた時刻に直してください</p>
   <input type="time" id="dlgTime">
   <div class="row"><button class="cancel" onclick="closeEdit()">やめる</button><button class="ok" onclick="saveEdit()">この時刻にする</button></div>
+</div></div>
+
+<div class="dlg" id="rdlg"><div class="box">
+  <h3 id="rdlgName"></h3>
+  <p>この園の配送ルール（置き場所・入口・注意点など）。保存すると、このコースの全員に表示されます。</p>
+  <textarea id="rdlgText" maxlength="1000" placeholder="例）裏口のインターホンを押す。8:30までは正面玄関不可。"></textarea>
+  <div class="row"><button class="cancel" onclick="closeRule()">やめる</button><button class="ok" id="rdlgOk" onclick="saveRule()">保存する</button></div>
 </div></div>
 
 <script>
@@ -157,7 +174,7 @@ function applyServer(s) {
 function view() {
   var q = queue().filter(function (x) { return x.date === state.date; });
   return state.stops.map(function (s) {
-    var o = { id: s.id, order: s.order, name: s.name, status: s.status, time: s.time, pending: false };
+    var o = { id: s.id, order: s.order, name: s.name, tw: s.tw || '', rule: s.rule || '', status: s.status, time: s.time, pending: false };
     q.forEach(function (x) {
       if (x.stopId !== s.id) return;
       if (x.op === 'undo') { o.status = ''; o.time = ''; }
@@ -200,14 +217,15 @@ function render() {
   } else {
     var cur = pickCurrent(todo);
     var opts = todo.map(function (s) {
-      return '<option value="' + esc(s.id) + '"' + (s.id === cur.id ? ' selected' : '') + '>' + esc(s.order + '. ' + s.name) + '</option>';
+      return '<option value="' + esc(s.id) + '"' + (s.id === cur.id ? ' selected' : '') + '>' + esc(s.order + '. ' + s.name + (s.tw ? '（' + s.tw + '）' : '')) + '</option>';
     }).join('');
     main.innerHTML =
       '<div class="card">' +
         '<div class="label">配送先（タップで変更できます）</div>' +
         '<div class="pick"><div class="no">配送順 ' + esc(cur.order) + '</div>' +
-          '<div class="name">' + esc(cur.name) + '</div><span class="chev">▼</span>' +
+          '<div class="name">' + esc(cur.name) + '</div>' + (cur.tw ? '<div class="tw">時間枠 ' + esc(cur.tw) + '</div>' : '') + '<span class="chev">▼</span>' +
           '<select onchange="choose(this.value)" aria-label="配送先を選ぶ">' + opts + '</select></div>' +
+        ruleBox(cur) +
         '<button class="btn-done" id="bDone" onclick="act(\'配達完了\')">配達完了</button>' +
         '<button class="btn-skip" id="bSkip" onclick="act(\'本日配送なし\')">本日配送なし</button>' +
       '</div>';
@@ -230,7 +248,8 @@ function render() {
   }
   if (state.started && todo.length > 1) {
     html += '<h2>残りの配送先</h2><ul class="log">' + todo.map(function (s) {
-      return '<li class="todo"><span class="t">' + esc(s.order) + '</span><span class="n">' + esc(s.name) + '</span></li>';
+      return '<li class="todo"><span class="t">' + esc(s.order) + '</span><span class="n">' + esc(s.name) +
+        (s.rule ? '<span class="mark">ルールあり</span>' : '') + (s.tw ? '<span class="sub">時間枠 ' + esc(s.tw) + '</span>' : '') + '</span></li>';
     }).join('') + '</ul>';
   }
   $('lists').innerHTML = html;
@@ -317,6 +336,42 @@ function undo(id) {
   state.currentId = id;
   render();
   if (serverHas || had) flush();
+}
+
+/* ---------- 配送ルール ---------- */
+function ruleBox(s) {
+  if (s.rule) {
+    return '<div class="rule"><div class="rh">配送ルール<button onclick="openRule(\'' + esc(s.id) + '\')">編集</button></div>' +
+      '<div class="rt">' + esc(s.rule) + '</div></div>';
+  }
+  return '<div class="rule empty"><div class="rh">配送ルールはまだありません<button onclick="openRule(\'' + esc(s.id) + '\')">＋追加</button></div></div>';
+}
+var ruleId = null;
+function openRule(id) {
+  var s = state.stops.filter(function (x) { return x.id === id; })[0];
+  if (!s) return;
+  ruleId = id;
+  $('rdlgName').textContent = s.name;
+  $('rdlgText').value = s.rule || '';
+  $('rdlg').classList.add('show');
+  setTimeout(function () { $('rdlgText').focus(); }, 50);
+}
+function closeRule() { ruleId = null; $('rdlg').classList.remove('show'); }
+function saveRule() {
+  var id = ruleId, text = $('rdlgText').value;
+  var btn = $('rdlgOk');
+  btn.disabled = true; btn.textContent = '保存中…';
+  run('api_saveRule', [K, id, text], function (s) {
+    btn.disabled = false; btn.textContent = '保存する';
+    closeRule();
+    if (s && s.date === state.date) state.stops = s.stops;
+    state.currentId = id;
+    render();
+    toast('配送ルールを保存しました');
+  }, function (e) {
+    btn.disabled = false; btn.textContent = '保存する';
+    alert('保存できませんでした：' + ((e && e.message) || '') + '\n電波の良い場所でもう一度お試しください。');
+  });
 }
 
 /* ---------- 時刻の修正 ---------- */
