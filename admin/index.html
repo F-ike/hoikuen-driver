@@ -126,6 +126,17 @@
   <!-- コース・業者 -->
   <section id="tab-courses" hidden>
     <div class="hint">業者を替えたら、業者名を直して「保存」→「URL再発行」。旧URLはその場で使えなくなるので、新しいURLを新しい業者に渡してください。<br>締め時刻を過ぎて未記録があるとアラートになります（空欄は標準締め時刻）。</div>
+    <div class="card" id="addCourseCard">
+      <div style="font-weight:700;margin-bottom:6px">＋ コースを追加</div>
+      <div class="form-row" style="margin:6px 0">
+        <input id="ncName" placeholder="コース名（例：都内(T)コース）" style="flex:2;min-width:200px">
+        <input id="ncVendor" placeholder="業者名（任意）" style="flex:1;min-width:140px">
+        <input id="ncDl" type="time" title="締め時刻（任意）" style="width:120px">
+        <button class="primary" id="btnAddCourse" onclick="addCourse()">追加</button>
+      </div>
+      <div class="hint" style="margin:0">追加すると、ドライバー用URLとコース別の記録シート（ドライブの「Oisix／コース別配送記録」）を自動で作ります。配送先は「配送先」タブでこのコースを選んで追加してください。</div>
+      <div id="ncResult"></div>
+    </div>
     <div id="courseList"></div>
   </section>
 
@@ -356,6 +367,23 @@ function renderCourses(){
       '</div></div>';
   }).join('');
 }
+function addCourse(){
+  var name = $('ncName').value.trim();
+  if (!name) { alert('コース名を入れてください'); return; }
+  if (!confirm('「' + name + '」を追加します。\nドライバー用URLと記録シートを作成します。よろしいですか？')) return;
+  $('ncResult').innerHTML = '<p class="hint">作成中…（記録シートを作るので10秒ほどかかります）</p>';
+  call('api_mgrAddCourse', [{ name: name, vendor: $('ncVendor').value, deadline: $('ncDl').value }], function(m){
+    setMaster(m);
+    var c = M.courses.filter(function(x){ return x.id === m.addedCourseId; })[0];
+    $('ncName').value = ''; $('ncVendor').value = ''; $('ncDl').value = '';
+    $('ncResult').innerHTML = c ? '<p style="color:#1a8f4c;font-weight:700;margin:10px 0 4px">「' + esc(c.name) + '」を追加しました（ID：' + esc(c.id) + '）</p>' +
+      '<div class="ctrl">' + (c.url ? '<button onclick="copyText(\'' + esc(c.url) + '\')">ドライバー用URLをコピー</button>' : '') +
+      '<button onclick="goStops(\'' + esc(c.id) + '\')">配送先を登録する</button></div>' : '';
+    toast('コースを追加しました');
+  }, $('btnAddCourse'));
+}
+function goStops(id){ $('stopCourse').value = id; draft = null; showTab('stops'); window.scrollTo(0, 0); }
+
 function saveCourse(i, btn){
   var c = M.courses[i];
   call('api_mgrSaveCourse', [c.id, { vendor: $('cv' + i).value, deadline: $('cd' + i).value, active: $('ca' + i).checked }], function(m){ setMaster(m); toast(c.name + ' を保存しました'); }, btn);
