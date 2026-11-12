@@ -51,7 +51,11 @@
   .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: rgba(29,39,51,.92); color: #fff;
     padding: 12px 18px; border-radius: 24px; font-size: 15px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90%; text-align: center; }
   .toast.show { opacity: 1; }
-  .overlay { position: fixed; inset: 0; background: rgba(255,255,255,.7); display: none; align-items: center; justify-content: center; font-size: 16px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { width:44px; height:44px; border:5px solid #d6dde5; border-top-color:#1f6feb; border-radius:50%; animation:spin .8s linear infinite; }
+  .spin-s { display:inline-block; width:14px; height:14px; border:2px solid #d6dde5; border-top-color:#1f6feb; border-radius:50%; animation:spin .8s linear infinite; vertical-align:-2px; margin-right:6px; }
+  .msg .spin-s { width:22px; height:22px; border-width:3px; vertical-align:-5px; margin-right:10px; }
+  .overlay { position: fixed; inset: 0; background: rgba(255,255,255,.8); display: none; flex-direction: column; gap: 14px; align-items: center; justify-content: center; font-size: 17px; font-weight: bold; z-index: 50; }
   .overlay.show { display: flex; }
   .dlg { position: fixed; inset: 0; background: rgba(29,39,51,.45); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 5; }
   .dlg.show { display: flex; }
@@ -85,12 +89,12 @@
   <div class="progress"><div id="bar"></div></div>
   <div class="count" id="count"></div>
   <div id="banner"></div>
-  <div id="main"><div class="msg">読み込み中…</div></div>
+  <div id="main"><div class="msg"><span class="spin-s"></span>読み込み中…</div></div>
   <div id="lists"></div>
   <button class="reload" onclick="load(true)">最新の状態に更新</button>
 </div>
 <div class="toast" id="toast"></div>
-<div class="overlay" id="overlay"><span id="overlayText">位置情報を取得中…</span></div>
+<div class="overlay" id="overlay"><div class="spinner"></div><span id="overlayText">位置情報を取得中…</span></div>
 <div class="dlg" id="dlg"><div class="box">
   <h3 id="dlgName"></h3>
   <p>実際に届けた時刻に直してください</p>
@@ -146,11 +150,14 @@ function run(fn, args, ok, ng) {
 
 /* ---------- 読み込み ---------- */
 function load(manual) {
+  if (manual) overlay(true, '最新の状態を読み込み中…');
   run('api_getDay', [K], function (s) {
+    if (manual) overlay(false);
     applyServer(s);
     if (manual) toast('更新しました');
     flush();
   }, function (e) {
+    if (manual) overlay(false);
     if (!state.date) $('main').innerHTML = '<div class="msg">' + esc(e && e.message || '読み込みに失敗しました') + '</div>';
     else toast('通信できません。電波の良い場所で「更新」を押してください');
   });
@@ -361,7 +368,9 @@ function saveRule() {
   var id = ruleId, text = $('rdlgText').value;
   var btn = $('rdlgOk');
   btn.disabled = true; btn.textContent = '保存中…';
+  overlay(true, '配送ルールを保存中…');
   run('api_saveRule', [K, id, text], function (s) {
+    overlay(false);
     btn.disabled = false; btn.textContent = '保存する';
     closeRule();
     if (s && s.date === state.date) state.stops = s.stops;
@@ -369,6 +378,7 @@ function saveRule() {
     render();
     toast('配送ルールを保存しました');
   }, function (e) {
+    overlay(false);
     btn.disabled = false; btn.textContent = '保存する';
     alert('保存できませんでした：' + ((e && e.message) || '') + '\n電波の良い場所でもう一度お試しください。');
   });

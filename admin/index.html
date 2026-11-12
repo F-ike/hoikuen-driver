@@ -90,6 +90,15 @@
     .ccard { grid-template-columns:1fr 1fr; }
     .ccard .cn { grid-column:1 / -1; } .ccard .acts { grid-column:1 / -1; }
   }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { width:44px; height:44px; border:5px solid #d6dde5; border-top-color:#1f6feb; border-radius:50%; animation:spin .8s linear infinite; }
+  .spin-s { display:inline-block; width:14px; height:14px; border:2px solid #d6dde5; border-top-color:#1f6feb; border-radius:50%; animation:spin .8s linear infinite; vertical-align:-2px; margin-right:6px; }
+  .msg .spin-s { width:22px; height:22px; border-width:3px; vertical-align:-5px; margin-right:10px; }
+  .busy { position:fixed; inset:0; background:rgba(244,246,248,.75); display:none; align-items:center; justify-content:center; z-index:50; }
+  .busy.show { display:flex; }
+  .busy-box { background:#fff; border-radius:14px; box-shadow:0 6px 24px rgba(0,0,0,.15); padding:26px 30px; min-width:220px; max-width:86vw; display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center; }
+  .busy-box b { font-size:16px; }
+  .busy-box small { color:var(--sub); font-size:12px; }
 </style>
 </head>
 <body>
@@ -112,7 +121,7 @@
     <div class="meta" id="meta"></div>
     <div id="alerts"></div>
     <div class="sum" id="sum"></div>
-    <div id="table"><div class="msg">読み込み中…（全コースを集計するので数秒かかります）</div></div>
+    <div id="table"><div class="msg"><span class="spin-s"></span>読み込み中…（全コースを集計するので数秒かかります）</div></div>
   </section>
 
   <!-- 配送先 -->
@@ -163,6 +172,7 @@
 
 <div class="savebar" id="savebar"><span>未保存の変更があります</span><button onclick="discardStops()">元に戻す</button><button class="primary" id="btnSave" onclick="saveStops()">保存</button></div>
 <div class="toast" id="toast"></div>
+<div class="busy" id="busy"><div class="busy-box"><div class="spinner"></div><b id="busyText">処理中…</b><small id="busySub"></small><small id="busyTime"></small></div></div>
 
 <script>
 var AK = (new URLSearchParams(location.search).get('admin') || '').trim(); var API_URL = "https://script.google.com/macros/s/AKfycbx4_IB8kYgLIm9uTthV0cpZCLAGcVcgGr2SIPlTWmNHGcBme3_S_M00yevcHt0Wbj1M5w/exec";
@@ -188,10 +198,34 @@ function rpc(fn, args, ok, ng){
     .then(function(j){ if (j && j.ok) ok(j.data); else ng(new Error((j && j.error) || 'エラーが発生しました')); })
     .catch(function(){ ng(new Error('通信できません。電波の良い場所でもう一度お試しください')); });
 }
+/* 処理中のくるくる表示 */
+var BUSY_LABEL = {
+  api_mgrGetMaster:  ['読み込み中…', ''],
+  api_mgrSaveStops:  ['保存中…', '各コースの記録シートにも反映しています'],
+  api_mgrAddCourse:  ['コースを追加中…', '記録シートを作成しています（10秒ほど）'],
+  api_mgrSaveCourse: ['保存中…', ''],
+  api_mgrReissueKey: ['URLを再発行中…', ''],
+  api_mgrMonthly:    ['月報を作成中…', '全コースを読むので30秒〜1分ほどかかります。画面を閉じずにお待ちください'],
+  api_mgrSaveSettings: ['保存中…', ''],
+  api_mgrTestMail:   ['テストメールを送信中…', '']
+};
+var busyN = 0, busyT0 = 0, busyTimer = null;
+function busy(on, fn){
+  busyN = Math.max(0, busyN + (on ? 1 : -1));
+  if (on) {
+    var l = BUSY_LABEL[fn] || ['処理中…', ''];
+    $('busyText').textContent = l[0]; $('busySub').textContent = l[1]; $('busyTime').textContent = '';
+    busyT0 = Date.now(); clearInterval(busyTimer);
+    busyTimer = setInterval(function(){ var s = Math.floor((Date.now() - busyT0) / 1000); $('busyTime').textContent = s >= 3 ? '経過 ' + s + '秒' : ''; }, 1000);
+  }
+  if (!busyN) clearInterval(busyTimer);
+  $('busy').classList.toggle('show', busyN > 0);
+}
 function call(fn, args, ok, btn){
   if (btn) btn.disabled = true;
-  rpc(fn, [AK].concat(args), function(x){ if (btn) btn.disabled = false; ok(x); },
-    function(e){ if (btn) btn.disabled = false; alert('エラー：' + (e && e.message || e)); });
+  busy(true, fn);
+  rpc(fn, [AK].concat(args), function(x){ busy(false); if (btn) btn.disabled = false; ok(x); },
+    function(e){ busy(false); if (btn) btn.disabled = false; alert('エラー：' + (e && e.message || e)); });
 }
 
 /* ---------- タブ ---------- */
@@ -229,7 +263,7 @@ function setMaster(m){
 /* ---------- 今日の状況 ---------- */
 $('date').value = ymd(new Date());
 function loadStatus(){
-  $('meta').textContent = '集計中…';
+  $('meta').innerHTML = '<span class="spin-s"></span>集計中…';
   rpc('api_adminOverview', [AK, $('date').value], renderStatus, function(e){ $('meta').textContent = 'エラー：' + (e && e.message || e); });
 }
 function renderStatus(ov){
@@ -371,7 +405,7 @@ function addCourse(){
   var name = $('ncName').value.trim();
   if (!name) { alert('コース名を入れてください'); return; }
   if (!confirm('「' + name + '」を追加します。\nドライバー用URLと記録シートを作成します。よろしいですか？')) return;
-  $('ncResult').innerHTML = '<p class="hint">作成中…（記録シートを作るので10秒ほどかかります）</p>';
+  $('ncResult').innerHTML = '';
   call('api_mgrAddCourse', [{ name: name, vendor: $('ncVendor').value, deadline: $('ncDl').value }], function(m){
     setMaster(m);
     var c = M.courses.filter(function(x){ return x.id === m.addedCourseId; })[0];
@@ -405,7 +439,7 @@ function reissue(i, btn){
   $('ym').innerHTML = h;
 })();
 function makeReport(){
-  $('reportResult').innerHTML = '<p class="hint">作成中…（全コースを読むので30秒〜1分ほどかかります）</p>';
+  $('reportResult').innerHTML = '';
   call('api_mgrMonthly', [$('ym').value], function(r){
     $('reportResult').innerHTML = '<p><b>' + esc(r.name) + '</b> を作成しました（' + r.rows + '行）</p>' +
       (r.errors.length ? '<p class="alert-txt">読めなかった記録シート：' + esc(r.errors.join('、')) + '</p>' : '') +
