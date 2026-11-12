@@ -409,10 +409,11 @@ function makeReport(){
   call('api_mgrMonthly', [$('ym').value], function(r){
     $('reportResult').innerHTML = '<p><b>' + esc(r.name) + '</b> を作成しました（' + r.rows + '行）</p>' +
       (r.errors.length ? '<p class="alert-txt">読めなかった記録シート：' + esc(r.errors.join('、')) + '</p>' : '') +
-      '<div class="ctrl"><a class="btn primary" href="' + esc(r.downloadUrl) + '" target="_blank">Excelをダウンロード</a>' +
-      '<a class="btn" href="' + esc(r.xlsxUrl) + '" target="_blank">ドライブで見る</a>' +
-      '<a class="btn" href="' + esc(r.openUrl) + '" target="_blank">管理シートで開く</a></div>' +
-      '<p class="hint">ファイル名：' + esc(r.xlsxName) + '</p>';
+      (r.xlsxError ? '<p class="alert-txt">' + esc(r.xlsxError) + '</p>' : '') +
+      '<div class="ctrl">' + (r.downloadUrl ? '<a class="btn primary" href="' + esc(r.downloadUrl) + '" target="_blank">Excelをダウンロード</a>' +
+      '<a class="btn" href="' + esc(r.xlsxUrl) + '" target="_blank">ドライブで見る</a>' : '') +
+      '<a class="btn' + (r.downloadUrl ? '' : ' primary') + '" href="' + esc(r.openUrl) + '" target="_blank">管理シートで開く</a></div>' +
+      (r.xlsxName ? '<p class="hint">ファイル名：' + esc(r.xlsxName) + '</p>' : '');
   }, $('btnReport'));
 }
 
